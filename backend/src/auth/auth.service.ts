@@ -3,7 +3,7 @@ import {
   UnauthorizedException,
   ForbiddenException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { AdminRole } from '@prisma/client';
@@ -180,7 +180,7 @@ export class AuthService {
     };
     return this.jwt.signAsync(payload, {
       secret: this.config.get<string>('JWT_SECRET'),
-      expiresIn: this.config.get<string>('JWT_EXPIRY') || '15m',
+      expiresIn: (this.config.get<string>('JWT_EXPIRY') || '15m') as JwtSignOptions['expiresIn'],
     });
   }
 
@@ -202,7 +202,7 @@ export class AuthService {
     };
     return this.jwt.signAsync(payload, {
       secret: this.config.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: this.config.get<string>('JWT_REFRESH_EXPIRY') || '7d',
+      expiresIn: (this.config.get<string>('JWT_REFRESH_EXPIRY') || '7d') as JwtSignOptions['expiresIn'],
     });
   }
 

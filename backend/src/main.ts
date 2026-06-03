@@ -55,13 +55,15 @@ async function bootstrap() {
   app.set('trust proxy', 1);
 
   // CORS — allow local dev, explicit FRONTEND_URL, and any *.vercel.app
+  const origin: (string | RegExp)[] = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    process.env.FRONTEND_URL,
+    /\.vercel\.app$/,
+  ].filter((value): value is string | RegExp => Boolean(value));
+
   app.enableCors({
-    origin: [
-      'http://localhost:5173',
-      'http://localhost:3000',
-      process.env.FRONTEND_URL,
-      /\.vercel\.app$/,
-    ].filter(Boolean),
+    origin,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     credentials: true,
   });
