@@ -1,3 +1,4 @@
+
 -- Enable trigram extension for fuzzy full-text search on Person
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
