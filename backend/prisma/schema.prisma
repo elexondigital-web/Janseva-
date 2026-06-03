@@ -1,0 +1,272 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_trgm]
+}
+
+model Block {
+  id        String    @id @default(cuid())
+  name      String
+  district  String
+  state     String    @default("Punjab")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  wards     Ward[]
+  admins    Admin[]
+  people    Person[]
+  events    Event[]
+  messages  Message[]
+}
+
+model Ward {
+  id        String   @id @default(cuid())
+  name      String
+  blockId   String
+  block     Block    @relation(fields: [blockId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  booths    Booth[]
+  admins    Admin[]
+  people    Person[]
+  events    Event[]
+}
+
+model Booth {
+  id        String   @id @default(cuid())
+  name      String
+  location  String?
+  wardId    String
+  ward      Ward     @relation(fields: [wardId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  admins    Admin[]
+  people    Person[]
+  events    Event[]
+}
+
+model Person {
+  id                  String       @id @default(cuid())
+  uniqueId            String       @unique
+  fullName            String
+  fatherName          String?
+  dob                 DateTime?
+  gender              Gender
+  phone               String
+  whatsapp            String?
+  email               String?
+  aadhaarNumber       String?
+  voterId             String?
+  address             String?
+  pincode             String?
+  occupation          String?
+  caste               String?
+  category            Category     @default(GENERAL)
+  photoUrl            String?
+  aadhaarImageUrl     String?
+  role                PartyRole    @default(MEMBER)
+  status              Status       @default(ACTIVE)
+  fingerprintTemplate String? // base64 ISO/IEC 19794-2 from Mantra MFS100 RD Service. Never returned in list APIs.
+  fingerprintEnrolled Boolean      @default(false)
+  boothId             String
+  wardId              String
+  blockId             String
+  booth               Booth        @relation(fields: [boothId], references: [id])
+  ward                Ward         @relation(fields: [wardId], references: [id])
+  block               Block        @relation(fields: [blockId], references: [id])
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  idCard              IDCard?
+  attendances         Attendance[]
+
+  @@index([phone])
+  @@index([blockId])
+  @@index([wardId])
+  @@index([boothId])
+  @@index([status])
+  @@index([gender])
+  @@index([category])
+  @@index([createdAt])
+  @@index([fullName(ops: raw("gin_trgm_ops"))], map: "Person_fullName_trgm_idx", type: Gin)
+  @@index([phone(ops: raw("gin_trgm_ops"))], map: "Person_phone_trgm_idx", type: Gin)
+  @@index([address(ops: raw("gin_trgm_ops"))], map: "Person_address_trgm_idx", type: Gin)
+  @@index([aadhaarNumber(ops: raw("gin_trgm_ops"))], map: "Person_aadhaarNumber_trgm_idx", type: Gin)
+  @@index([voterId(ops: raw("gin_trgm_ops"))], map: "Person_voterId_trgm_idx", type: Gin)
+  @@index([uniqueId(ops: raw("gin_trgm_ops"))], map: "Person_uniqueId_trgm_idx", type: Gin)
+}
+
+model Admin {
+  id                 String    @id @default(cuid())
+  name               String
+  email              String    @unique
+  passwordHash       String
+  role               AdminRole
+  blockId            String?
+  wardId             String?
+  boothId            String?
+  block              Block?    @relation(fields: [blockId], references: [id])
+  ward               Ward?     @relation(fields: [wardId], references: [id])
+  booth              Booth?    @relation(fields: [boothId], references: [id])
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(false)
+  lastLoginAt        DateTime?
+  loginCount         Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([blockId])
+  @@index([role])
+}
+
+model IDCard {
+  id           String   @id @default(cuid())
+  personId     String   @unique
+  uniqueCardId String   @unique
+  qrCodeData   String
+  issuedAt     DateTime @default(now())
+  isActive     Boolean  @default(true)
+  person       Person   @relation(fields: [personId], references: [id])
+}
+
+model Event {
+  id          String       @id @default(cuid())
+  name        String
+  type        EventType
+  date        DateTime
+  location    String?
+  description String?
+  blockId     String
+  wardId      String?
+  boothId     String?
+  targetLevel TargetLevel  @default(BLOCK)
+  block       Block        @relation(fields: [blockId], references: [id])
+  ward        Ward?        @relation(fields: [wardId], references: [id])
+  booth       Booth?       @relation(fields: [boothId], references: [id])
+  createdAt   DateTime     @default(now())
+  attendances Attendance[]
+
+  @@index([blockId])
+  @@index([wardId])
+  @@index([boothId])
+  @@index([date])
+}
+
+model Attendance {
+  id       String           @id @default(cuid())
+  personId String
+  eventId  String
+  markedAt DateTime         @default(now())
+  method   AttendanceMethod @default(MANUAL)
+  person   Person           @relation(fields: [personId], references: [id])
+  event    Event            @relation(fields: [eventId], references: [id])
+
+  @@unique([personId, eventId])
+  @@index([eventId])
+  @@index([personId])
+  @@index([markedAt])
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  type           MessageType
+  content        String
+  subject        String?
+  sentBy         String
+  sentAt         DateTime    @default(now())
+  targetLevel    TargetLevel
+  targetId       String?
+  status         String      @default("sent")
+  recipientCount Int         @default(0)
+  failedCount    Int         @default(0)
+  blockId        String
+  block          Block       @relation(fields: [blockId], references: [id])
+
+  @@index([blockId])
+  @@index([sentAt])
+  @@index([type])
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum Category {
+  GENERAL
+  OBC
+  SC
+  ST
+}
+
+enum PartyRole {
+  MEMBER
+  BOOTH_WORKER
+  WARD_ADMIN
+  BLOCK_ADMIN
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  BLOCK_ADMIN
+  WARD_ADMIN
+  BOOTH_WORKER
+}
+
+enum EventType {
+  RALLY
+  MEETING
+  FUNCTION
+  GET_TOGETHER
+}
+
+enum AttendanceMethod {
+  QR
+  FINGERPRINT
+  MANUAL
+}
+
+enum MessageType {
+  SMS
+  WHATSAPP
+  EMAIL
+}
+
+enum TargetLevel {
+  ALL
+  BLOCK
+  WARD
+  BOOTH
+}
+
+/// Phase 4 audit trail. Every state-changing admin action lands here.
+/// Stored denormalized (adminName, blockId copied) so the row stays
+/// useful even if the admin is later renamed or moved between blocks.
+model AuditLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  adminName String
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  ipAddress String?
+  blockId   String?
+  createdAt DateTime @default(now())
+
+  @@index([adminId])
+  @@index([blockId])
+  @@index([action])
+  @@index([entity])
+  @@index([createdAt])
+}

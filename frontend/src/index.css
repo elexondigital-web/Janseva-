@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #f6f7f9;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #dde1e7;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #99a1ad;
+  }
+
+  /* Focus ring */
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: none;
+    border-color: #087ea4;
+    box-shadow: 0 0 0 3px rgba(8, 126, 164, 0.1);
+  }
+}
+
+@layer components {
+  /* Table row hover */
+  .table-row-hover:hover {
+    background-color: #f0f8fc;
+  }
+}
+
+/* Single ID-card print (85.6mm x 54mm — ISO/IEC 7810 ID-1). Activated
+ * when a card with .id-card-print is in the DOM and the user triggers
+ * window.print(). Everything else is hidden.
+ *
+ * The on-screen card is sized at 342×216 CSS px (4px/mm, aspect-locked
+ * to ISO ID-1). In print context, CSS px = 1/96in, so 342px renders as
+ * ~90.5mm — slightly larger than the 85.6mm @page. We scale the whole
+ * card by 85.6/90.5 ≈ 0.946 so nothing reflows, and every inner
+ * padding/font-size shrinks proportionally to land on exact physical
+ * dimensions. */
+@media print {
+  @page {
+    size: 85.6mm 54mm;
+    margin: 0;
+  }
+  body:has(.id-card-print) * {
+    visibility: hidden;
+  }
+  body:has(.id-card-print) .id-card-print,
+  body:has(.id-card-print) .id-card-print * {
+    visibility: visible;
+  }
+  body:has(.id-card-print) .id-card-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform: scale(0.946);
+    transform-origin: top left;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

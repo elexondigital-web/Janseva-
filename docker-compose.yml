@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: janseva-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: janseva
+      POSTGRES_PASSWORD: janseva123
+      POSTGRES_DB: janseva
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U janseva']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: janseva-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@janseva.in
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - '5050:80'
+    depends_on:
+      - postgres
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: janseva-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://janseva:janseva123@postgres:5432/janseva
+      JWT_SECRET: janseva-jwt-secret-change-in-production
+      JWT_REFRESH_SECRET: janseva-refresh-secret-change-in-production
+      JWT_EXPIRY: 15m
+      JWT_REFRESH_EXPIRY: 7d
+      PORT: 3000
+      FRONTEND_URL: http://localhost:5173
+      NODE_ENV: development
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: janseva-frontend
+    restart: unless-stopped
+    ports:
+      - '5173:5173'
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  pgdata:

@@ -1,0 +1,50 @@
+# --------- Build stage ---------
+# Compile TypeScript and run `prisma generate` here so the runtime
+# image stays small. We install full deps (including dev) for the
+# build, then copy only what's needed into the runtime stage.
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# OpenSSL is required by the Prisma engine.
+RUN apk add --no-cache openssl
+
+# Install deps with a clean reproducible lockfile install.
+COPY package*.json ./
+RUN npm ci
+
+# Copy the rest of the source.
+COPY tsconfig*.json ./
+COPY nest-cli.json ./
+COPY prisma ./prisma
+COPY src ./src
+
+RUN npx prisma generate
+RUN npm run build
+
+# Strip dev deps so we copy only production node_modules to runtime.
+RUN npm prune --omit=dev
+
+# --------- Runtime stage ---------
+FROM node:18-alpine
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+RUN apk add --no-cache openssl tini
+
+# Copy the trimmed runtime artefacts.
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/package*.json ./
+
+# Drop privileges — Nest doesn't need root.
+RUN addgroup -S janseva && adduser -S janseva -G janseva
+USER janseva
+
+EXPOSE 3000
+
+# tini ensures clean signal handling for graceful shutdowns.
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "dist/main.js"]

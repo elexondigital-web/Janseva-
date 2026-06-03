@@ -1,0 +1,98 @@
+version: '3.8'
+
+# Production compose file for JanSeva.
+#
+# Differences from the dev `docker-compose.yml`:
+#   - Postgres has no port published to the host (only reachable inside
+#     the `janseva_net` network).
+#   - Backend & frontend are built from `Dockerfile.prod` multi-stage
+#     builds; no source bind-mounts.
+#   - Nginx fronts everything on :80 / :443 with HTTPS termination,
+#     gzip, and reverse-proxy to the backend at /api/*.
+#   - Secrets come from a `.env` file next to this file (see
+#     `.env.example` for the variable list).
+#   - All services share a private bridge network; nothing else is
+#     reachable from the host.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: janseva
+      POSTGRES_USER: janseva
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U janseva']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - janseva_net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://janseva:${DB_PASSWORD}@db:5432/janseva
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_EXPIRY: 15m
+      JWT_REFRESH_EXPIRY: 7d
+      PORT: 3000
+      FRONTEND_URL: ${FRONTEND_URL}
+      NODE_ENV: production
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_BUCKET_NAME: ${AWS_BUCKET_NAME}
+      AWS_REGION: ${AWS_REGION}
+      MSG91_AUTH_KEY: ${MSG91_AUTH_KEY}
+      MSG91_FLOW_ID: ${MSG91_FLOW_ID}
+      MSG91_SENDER_ID: ${MSG91_SENDER_ID}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME}
+      REPORTS_CACHE_TTL_MS: ${REPORTS_CACHE_TTL_MS:-300000}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - janseva_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    restart: always
+    networks:
+      - janseva_net
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/ssl/certs:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - janseva_net
+
+volumes:
+  postgres_data:
+
+networks:
+  janseva_net:
+    driver: bridge
